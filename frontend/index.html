@@ -1,0 +1,1835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blueprint Copilot - UE蓝图构思助手</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Segoe UI",sans-serif;background:linear-gradient(135deg,#0f0f23 0%,#1a1a2e 50%,#16213e 100%);color:#e0e0e0;min-height:100vh;overflow:hidden}
+.app-container{display:flex;height:100vh}
+.sidebar{width:320px;background:rgba(0,0,0,0.4);border-right:1px solid #333;display:flex;flex-direction:column;backdrop-filter:blur(10px)}
+.sidebar-header{padding:20px;border-bottom:1px solid #333}
+.sidebar-header h1{font-size:20px;font-weight:600;background:linear-gradient(90deg,#00d4ff,#7b2ff7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sidebar-header p{font-size:12px;color:#888;margin-top:5px}
+.input-section{flex:1;padding:15px;display:flex;flex-direction:column;overflow-y:auto}
+.input-section label{font-size:13px;color:#aaa;margin-bottom:8px}
+.input-section textarea{flex:1;background:rgba(30,30,50,0.8);border:1px solid #333;border-radius:8px;padding:12px;color:#fff;font-size:14px;resize:none;outline:none}
+.input-section textarea:focus{border-color:#00d4ff}
+.btn{padding:12px 20px;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;margin-top:10px}
+.btn-primary{background:linear-gradient(90deg,#00d4ff,#7b2ff7);color:white}
+.btn-tool{padding:8px 12px;background:rgba(50,50,70,0.8);color:#aaa;font-size:12px;border:1px solid #444}
+.btn-tool:hover{background:rgba(0,212,255,0.2);color:#00d4ff}
+.variables-panel{margin-top:20px;padding:15px;background:rgba(0,0,0,0.3);border-radius:8px}
+.variables-panel h3{font-size:14px;color:#00d4ff;margin-bottom:10px}
+.variable-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #222;font-size:13px}
+.variable-name{color:#fff}.variable-type{color:#7b2ff7}
+.toolbar{padding:15px;border-top:1px solid #333;display:flex;gap:10px;flex-wrap:wrap}
+.main-area{flex:1;display:flex;flex-direction:column}
+.canvas-toolbar{padding:10px 20px;background:rgba(0,0,0,0.3);border-bottom:1px solid #333;display:flex;align-items:center;gap:20px}
+.canvas-toolbar span{font-size:12px;color:#888}
+.zoom-controls{display:flex;align-items:center;gap:5px}
+.zoom-btn{width:28px;height:28px;background:rgba(50,50,70,0.8);border:1px solid #444;border-radius:4px;color:#fff;cursor:pointer}
+.canvas-container{flex:1;position:relative;overflow:hidden;background:radial-gradient(circle at 20px 20px,#1a1a2e 0,transparent 1px),radial-gradient(circle at 10px 10px,#2a2a3e 0,transparent 1px);background-size:20px 20px}
+.canvas{position:absolute;top:0;left:0;transform-origin:0 0}
+.connection{fill:none;stroke:#00d4ff;stroke-width:2}
+.loading-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100}
+.loading-spinner{width:50px;height:50px;border:4px solid #333;border-top-color:#00d4ff;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{margin-top:15px;font-size:14px;color:#00d4ff}
+.history-panel{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.8);border-top:1px solid #333;padding:10px;max-height:150px;overflow-y:auto;display:none}
+.history-item{padding:8px 12px;background:rgba(50,50,70,0.5);border-radius:4px;margin-bottom:5px;font-size:12px;cursor:pointer}
+.history-item:hover{background:rgba(0,212,255,0.2)}
+.message-area{padding:10px 20px;background:rgba(0,0,0,0.2);border-top:1px solid #333;font-size:12px;color:#888}</style></head><body><div class="app-container">
+<div class="sidebar">
+<div class="sidebar-header"><h1>Blueprint Copilot</h1><p>UE蓝图构思助手</p></div>
+<div class="input-section">
+<label>输入需求描述：</label>
+<textarea id="prompt-input" placeholder="例如：当玩家按下空格键时，角色跳跃..."></textarea>
+<div style="margin-top:10px">
+<label style="display:block;font-size:12px;color:#888;margin-bottom:4px">API Key（选填，使用SiliconFlow）：</label>
+<input type="password" id="api-key-input" placeholder="输入您的SiliconFlow API Key..." style="width:100%;padding:6px 10px;border:1px solid #333;border-radius:4px;background:#1a1a2e;color:#fff;font-size:12px" />
+</div>
+<button class="btn btn-primary" id="generate-btn">生成蓝图</button>
+<div class="variables-panel" id="variables-panel"><h3>变量列表</h3><div id="variables-list"></div></div>
+</div>
+<div class="toolbar">
+<button class="btn btn-tool" id="export-json">导出 JSON</button>
+<button class="btn btn-tool" id="export-markdown">导出 Markdown</button>
+<button class="btn btn-tool" id="show-history">历史记录</button>
+<button class="btn btn-tool" id="clear-canvas">清空画布</button>
+<button class="btn btn-tool" id="load-example" style="background:rgba(0,212,255,0.3);color:#00d4ff">查看示例</button>
+</div></div>
+<div class="main-area">
+<div class="canvas-toolbar">
+<span>缩放:</span><div class="zoom-controls">
+<button class="zoom-btn" id="zoom-out">-</button>
+<span id="zoom-level">100%</span>
+<button class="zoom-btn" id="zoom-in">+</button>
+</div>
+<span style="margin-left:20px">节点数: <span id="node-count">0</span></span></div>
+<div class="canvas-container" id="canvas-container">
+<svg class="canvas" id="canvas" width="5000" height="5000" viewBox="0 0 5000 5000" preserveAspectRatio="xMidYMid meet"></svg>
+<div id="node-tooltip" class="node-tooltip" style="display:none;position:absolute;background:rgba(15,15,30,0.95);border:1px solid #00d4ff;border-radius:8px;padding:12px;max-width:280px;z-index:1000;pointer-events:none;box-shadow:0 4px 20px rgba(0,212,255,0.3)"></div>
+<div class="loading-overlay" id="loading-overlay" style="display:none"><div class="loading-spinner"></div><div class="loading-text">AI正在生成蓝图...</div></div>
+</div>
+<div class="message-area" id="message-area">就绪</div>
+<div class="history-panel" id="history-panel"><h3 style="color:#00d4ff;margin-bottom:10px">历史记录</h3><div id="history-list"></div></div>
+</div></div><script>const API_URL = "https://api.siliconflow.cn/v1/chat/completions";
+const MODEL_NAME = "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B";
+const SYSTEM_PROMPT = "你是UE蓝图设计助手。将用户需求转化为蓝图节点JSON。必须输出纯JSON，不含其他文字。\n\nJSON格式：\n{\n  \"nodes\": [\n    {\"id\":\"唯一ID\",\"type\":\"节点类型\",\"label\":\"显示名\",\"x\":0,\"y\":0,\"color\":\"#颜色\",\"inputs\":[{\"name\":\"引脚名\",\"type\":\"类型\"}],\"outputs\":[{\"name\":\"引脚名\",\"type\":\"类型\"}],\"properties\":{}}\n  ],\n  \"connections\": [{\"fromNode\":\"源ID\",\"fromPin\":\"源引脚\",\"toNode\":\"目标ID\",\"toPin\":\"目标引脚\"}],\n  \"variables\": [{\"name\":\"变量名\",\"type\":\"类型\",\"defaultValue\":\"默认值\",\"description\":\"说明\"}],\n  \"description\": \"逻辑说明\"\n}\n\n节点类型：EventBeginPlay, EventTick, SetVariable, GetVariable, Branch, PrintString, PlaySound, SpawnActor, DestroyActor, AddActorWorldOffset, Delay, Loop, CastTo\n\n颜色：事件#1a1a2e, 变量#16213e, 逻辑#0f3460, 函数#533483, 运算#e94560\n\n必须生成至少8个节点，包含循环和条件分支。";
+
+const NODE_DESCRIPTIONS = {
+    "EventBeginPlay": {
+        name: "游戏开始事件",
+        description: "当游戏开始或Actor生成时触发一次。常用于初始化变量、设置初始状态。",
+        category: "事件节点",
+        example: "设置初始生命值、生成初始敌人、播放背景音乐"
+    },
+    "EventTick": {
+        name: "每帧更新事件",
+        description: "每帧触发一次（通常60次/秒）。用于需要持续检测或更新的逻辑。",
+        category: "事件节点",
+        example: "检测输入、更新位置、持续伤害"
+    },
+    "EventActorBeginOverlap": {
+        name: "碰撞开始事件",
+        description: "当Actor与其他物体开始重叠时触发。用于碰撞检测、拾取物品。",
+        category: "事件节点",
+        example: "拾取物品、触发陷阱、进入区域"
+    },
+    "InputAction": {
+        name: "输入动作事件",
+        description: "当玩家按下特定按键时触发。用于响应键盘、鼠标、手柄输入。",
+        category: "事件节点",
+        example: "跳跃、攻击、使用物品"
+    },
+    "SetVariable": {
+        name: "设置变量",
+        description: "设置变量的值。可以初始化或修改变量。",
+        category: "变量节点",
+        example: "设置生命值、增加分数、更新状态"
+    },
+    "GetVariable": {
+        name: "获取变量",
+        description: "读取变量的当前值。用于条件判断或计算。",
+        category: "变量节点",
+        example: "检查生命值、获取玩家位置"
+    },
+    "Branch": {
+        name: "条件分支",
+        description: "根据布尔条件选择执行路径。True走一个分支，False走另一个。",
+        category: "逻辑节点",
+        example: "生命值<=0?、是否在地面?、背包是否已满?"
+    },
+    "Loop": {
+        name: "循环",
+        description: "重复执行指定次数。每次循环执行Loop Body，完成后执行Then。",
+        category: "逻辑节点",
+        example: "生成多个敌人、批量处理物品"
+    },
+    "Delay": {
+        name: "延迟",
+        description: "暂停执行指定时间（秒）。用于计时、冷却、动画等待。",
+        category: "运算节点",
+        example: "等待3秒后生成敌人、技能冷却"
+    },
+    "PrintString": {
+        name: "打印字符串",
+        description: "在屏幕上显示文本。用于调试、提示信息、游戏状态显示。",
+        category: "函数节点",
+        example: "显示分数、调试输出、游戏提示"
+    },
+    "PlaySound": {
+        name: "播放音效",
+        description: "播放指定的声音资源。用于背景音乐、音效、语音。",
+        category: "函数节点",
+        example: "跳跃音效、攻击音效、背景音乐"
+    },
+    "SpawnActor": {
+        name: "生成Actor",
+        description: "在指定位置创建新的Actor对象。用于动态生成游戏对象。",
+        category: "函数节点",
+        example: "生成敌人、创建子弹、放置防御塔"
+    },
+    "DestroyActor": {
+        name: "销毁Actor",
+        description: "从游戏中移除Actor对象。用于敌人死亡、物品消耗、清理对象。",
+        category: "函数节点",
+        example: "敌人死亡、物品使用后消失、子弹命中"
+    },
+    "AddActorWorldOffset": {
+        name: "添加世界偏移",
+        description: "移动Actor的位置。用于角色移动、跳跃、物体位移。",
+        category: "函数节点",
+        example: "角色跳跃、敌人移动、平台升降"
+    },
+    "CastTo": {
+        name: "类型转换",
+        description: "将对象转换为特定类型。成功时执行Success，失败执行Failure。",
+        category: "运算节点",
+        example: "检测碰撞对象类型、区分敌人和道具"
+    }
+};
+
+const canvas = document.getElementById("canvas");
+const canvasContainer = document.getElementById("canvas-container");
+const promptInput = document.getElementById("prompt-input");
+const apiKeyInput = document.getElementById("api-key-input");
+const generateBtn = document.getElementById("generate-btn");
+const loadingOverlay = document.getElementById("loading-overlay");
+const messageArea = document.getElementById("message-area");
+const variablesList = document.getElementById("variables-list");
+const nodeCount = document.getElementById("node-count");
+let currentBlueprint = null;
+let zoom = 1;
+let isDragging = false;
+let dragOffset = { x: 0, y: 0 };
+let canvasOffset = { x: 0, y: 0 };
+let selectedNode = null;
+let history = JSON.parse(localStorage.getItem("blueprintHistory") || "[]");
+async function generateBlueprint() {
+    const prompt = promptInput.value.trim();
+    if (!prompt) { showMessage("请输入需求描述"); return; }
+    loadingOverlay.style.display = "flex";
+    generateBtn.disabled = true;
+    showMessage("分析需求...");
+    
+    const apiKey = apiKeyInput.value.trim();
+    let blueprint = null;
+    
+    if (apiKey) {
+        showMessage("AI生成中...");
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: MODEL_NAME,
+                    messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }],
+                    temperature: 0.7
+                })
+            });
+            if (!response.ok) throw new Error("API失败: " + response.status);
+            const data = await response.json();
+            const aiResponse = data.choices[0].message.content;
+            blueprint = parseBlueprintJson(aiResponse);
+        } catch (error) {
+            console.error("AI调用失败:", error);
+            showMessage("AI调用失败，使用本地规则引擎");
+        }
+    }
+    
+    if (!blueprint) {
+        const logicElements = analyzeGameLogic(prompt);
+        console.log("本地分析结果:", logicElements);
+        showMessage("生成流程图...");
+        blueprint = generateBlueprintFromAIAnalysis(prompt, logicElements);
+    }
+    
+    blueprint = validateAndFixBlueprint(blueprint);
+    currentBlueprint = blueprint;
+    renderBlueprint(blueprint);
+    updateVariablesPanel(blueprint.variables);
+    saveToHistory(prompt, blueprint);
+    showMessage("完成 - " + blueprint.nodes.length + " 节点");
+    
+    loadingOverlay.style.display = "none";
+    generateBtn.disabled = false;
+}
+
+function analyzeGameLogic(text) {
+    const elements = {
+        events: [],
+        variables: [],
+        conditions: [],
+        actions: [],
+        loops: [],
+        branches: []
+    };
+    
+    const eventPatterns = {
+        '游戏开始': ['开始', '初始化', '启动', '开始时', '游戏开始'],
+        '每帧更新': ['每帧', '持续', '实时', '不断', '每一帧', 'tick'],
+        '碰撞触发': ['碰撞', '接触', '碰到', '触发', '重叠', '碰到', '接触'],
+        '按键输入': ['按键', '按下', '点击', '输入', '键盘', '鼠标', '按'],
+        '定时器': ['定时', '计时', '倒计时', '每隔', '每秒', '每分钟', '秒', '延迟'],
+        '敌人进入': ['敌人进入', '敌人出现', '敌人到达', '敌人移动'],
+        '攻击触发': ['攻击', '发射', '开火', '攻击触发']
+    };
+    
+    const variablePatterns = {
+        '生命值': ['生命', '血量', 'HP', '健康', '生命上限'],
+        '速度': ['速度', '移动速度', '速率', '移动'],
+        '分数': ['分数', '积分', '得分', '点数', '分数'],
+        '波次': ['波', '回合', '轮次', '关卡', '波数'],
+        '敌人数量': ['敌人数量', '敌人数', '怪物数', '敌人'],
+        '背包容量': ['背包', '物品栏', '容量', '库存'],
+        '等级': ['等级', '级别', 'LV', 'level', '升级'],
+        '时间': ['时间', '计时', '秒', '分钟'],
+        '能量': ['能量', '魔力', 'MP', '法力', '能量值'],
+        '金币': ['金币', '金钱', '货币', '钱', '金币数', '花费', '购买'],
+        '经验': ['经验', 'EXP', '经验值', '经验条'],
+        '防御塔': ['防御塔', '塔', '炮塔', '炮台', '放置'],
+        '路径': ['路径', '路线', '移动路径'],
+        '伤害': ['伤害', '攻击力', '攻击', '伤害值'],
+        '距离': ['距离', '范围', '射程'],
+        '数量': ['数量', '计数', '总数']
+    };
+    
+    const conditionPatterns = {
+        '生命值<=0': ['生命值小于', '血量为0', '死亡', '生命<=0', 'HP<=0', '生命为0'],
+        '速度>100': ['速度超过', '速度大于', '速度>', '速度达到'],
+        '背包已满': ['背包满', '容量满', '无法拾取', '已满'],
+        '在地面': ['在地面', '着地', '落地', '地面'],
+        '胜利': ['胜利', '通关', '完成', '成功', '胜利条件'],
+        '失败': ['失败', '结束', '游戏结束', '死亡', '失败条件'],
+        '波次>=5': ['波次达到', '回合达到', '波>=', '完成波次'],
+        '敌人到达终点': ['敌人到达', '到达终点', '进入终点'],
+        '金币足够': ['金币足够', '金钱足够', '足够购买'],
+        '经验满': ['经验满', '升级', '经验值满', '升级条件'],
+        '范围内有敌人': ['范围内', '敌人在', '附近有敌人']
+    };
+    
+    const actionPatterns = {
+        '跳跃': ['跳跃', '跳', '起跳', '弹跳', '跳跃动作'],
+        '攻击': ['攻击', '打击', '伤害', '造成伤害', '攻击敌人'],
+        '生成敌人': ['生成敌人', '创建敌人', '产生敌人', '刷怪', '敌人出现'],
+        '播放音效': ['播放', '音效', '声音', '音乐', '播放声音'],
+        '恢复生命': ['恢复', '治疗', '回血', '加血', '恢复生命'],
+        '移动': ['移动', '位移', '行走', '跑步', '沿路径'],
+        '加速': ['加速', '提升速度', '增速', '加速移动'],
+        '减速': ['减速', '降低速度', '减速', '速度减半'],
+        '拾取': ['拾取', '捡起', '获取', '收集', '拿到'],
+        '使用物品': ['使用', '消耗', '使用物品', '使用技能'],
+        '销毁': ['销毁', '删除', '移除', '消失', '死亡'],
+        '延迟': ['延迟', '等待', '暂停', '延时', '等待时间'],
+        '放置防御塔': ['放置', '建造', '放置塔', '建造塔'],
+        '发射子弹': ['发射', '开火', '发射子弹', '攻击'],
+        '扣血': ['扣血', '减少生命', '伤害', '受到伤害'],
+        '增加金币': ['增加金币', '获得金币', '金币+', '获得钱'],
+        '升级': ['升级', '提升', '等级+', '升级等级'],
+        '购买': ['购买', '花费', '消费', '购买物品']
+    };
+    
+    const loopPatterns = ['循环', '重复', '每隔', '每秒', '每帧', '持续', '不断', '每波', '每轮'];
+    const branchPatterns = ['如果', '当', '判断', '条件', '否则', '或者', '如果', '是否'];
+    
+    // 分析事件
+    for (const [event, patterns] of Object.entries(eventPatterns)) {
+        if (patterns.some(p => text.includes(p))) {
+            elements.events.push(event);
+        }
+    }
+    
+    // 分析变量
+    for (const [variable, patterns] of Object.entries(variablePatterns)) {
+        if (patterns.some(p => text.includes(p))) {
+            elements.variables.push(variable);
+        }
+    }
+    
+    // 分析条件
+    for (const [condition, patterns] of Object.entries(conditionPatterns)) {
+        if (patterns.some(p => text.includes(p))) {
+            elements.conditions.push(condition);
+        }
+    }
+    
+    // 分析动作
+    for (const [action, patterns] of Object.entries(actionPatterns)) {
+        if (patterns.some(p => text.includes(p))) {
+            elements.actions.push(action);
+        }
+    }
+    
+    // 分析循环
+    if (loopPatterns.some(p => text.includes(p))) {
+        const loopMatch = text.match(/(\d+)[次秒]/);
+        if (loopMatch) {
+            elements.loops.push(`循环${loopMatch[1]}次`);
+        } else {
+            elements.loops.push('循环');
+        }
+    }
+    
+    // 分析分支
+    if (branchPatterns.some(p => text.includes(p))) {
+        elements.branches.push('条件判断');
+    }
+    
+    // 智能推断：如果提到数字，可能是循环次数或条件阈值
+    const numbers = text.match(/\d+/g);
+    if (numbers) {
+        numbers.forEach(num => {
+            if (parseInt(num) > 0 && parseInt(num) < 100) {
+                if (text.includes('圈') || text.includes('波') || text.includes('次')) {
+                    if (!elements.loops.includes(`循环${num}次`)) {
+                        elements.loops.push(`循环${num}次`);
+                    }
+                }
+            }
+        });
+    }
+    
+    return elements;
+}
+
+function generateBlueprintFromAIAnalysis(prompt, elements) {
+    const nodes = [];
+    const connections = [];
+    const variables = [];
+    let nextId = 1;
+    let x = 50;
+    let y = 50;
+    const nodeW = 180;
+    const nodeH = 80;
+    const vGap = 60;
+    const hGap = 100;
+    
+    const hasEvent = (name) => elements?.events?.some(e => e.includes(name)) || prompt.includes(name);
+    const hasVar = (name) => elements?.variables?.some(v => v.includes(name)) || prompt.includes(name);
+    const hasCondition = (name) => elements?.conditions?.some(c => c.includes(name)) || prompt.includes(name);
+    const hasAction = (name) => elements?.actions?.some(a => a.includes(name)) || prompt.includes(name);
+    const hasLoop = () => elements?.loops?.length > 0 || prompt.includes("循环") || prompt.includes("每隔");
+    const hasBranch = () => elements?.branches?.length > 0 || prompt.includes("如果") || prompt.includes("当") || prompt.includes("判断");
+    
+    const hasHealth = hasVar("生命") || hasVar("血量") || hasCondition("生命") || hasCondition("血量");
+    const hasWave = hasVar("波次") || hasVar("波") || hasCondition("波");
+    const hasEnemy = hasAction("生成敌人") || hasAction("敌人") || prompt.includes("敌人") || hasVar("敌人");
+    const hasJump = hasAction("跳跃") || hasAction("跳") || prompt.includes("跳跃") || prompt.includes("跳");
+    const hasSound = hasAction("音效") || hasAction("播放") || prompt.includes("音效") || prompt.includes("播放");
+    const hasSpawn = hasAction("生成") || prompt.includes("生成") || prompt.includes("创建");
+    const hasDamage = hasAction("伤害") || hasAction("攻击") || prompt.includes("伤害") || prompt.includes("攻击") || hasVar("伤害");
+    const hasItem = hasVar("物品") || hasAction("拾取") || prompt.includes("物品") || prompt.includes("拾取");
+    const hasInventory = hasVar("背包") || hasCondition("背包") || prompt.includes("背包");
+    const hasPotion = hasAction("恢复") || hasAction("药水") || prompt.includes("药水") || prompt.includes("恢复");
+    const hasBomb = hasAction("炸弹") || hasAction("爆炸") || prompt.includes("炸弹");
+    const hasKey = hasAction("钥匙") || hasAction("开门") || prompt.includes("钥匙") || prompt.includes("门");
+    const hasCollision = hasEvent("碰撞") || hasEvent("触发") || prompt.includes("碰撞") || prompt.includes("触发") || prompt.includes("撞到") || prompt.includes("撞击");
+    const hasInput = hasEvent("按键") || hasEvent("输入") || prompt.includes("按") || prompt.includes("键");
+    const hasMove = hasAction("移动") || hasAction("位移") || prompt.includes("移动") || hasVar("移动");
+    const hasTimer = hasAction("延迟") || hasAction("等待") || prompt.includes("延迟") || prompt.includes("等待") || prompt.includes("秒");
+    const hasVictory = hasCondition("胜利") || hasCondition("胜利") || prompt.includes("胜利") || prompt.includes("胜利");
+    const hasGameOver = hasCondition("结束") || hasCondition("失败") || prompt.includes("结束") || prompt.includes("失败");
+    const hasScore = hasVar("分数") || hasVar("积分") || prompt.includes("分数") || prompt.includes("积分");
+    const hasLevel = hasVar("等级") || hasVar("关卡") || prompt.includes("等级") || prompt.includes("关卡");
+    const hasSpeed = hasVar("速度") || hasAction("加速") || prompt.includes("速度") || prompt.includes("加速");
+    const hasCount = hasVar("数量") || hasVar("计数") || prompt.includes("数量") || prompt.includes("计数");
+    const hasGold = hasVar("金币") || hasAction("增加金币") || hasAction("购买") || prompt.includes("金币") || prompt.includes("金钱");
+    const hasExp = hasVar("经验") || hasCondition("经验满") || prompt.includes("经验") || prompt.includes("EXP");
+    const hasTower = hasVar("防御塔") || hasAction("放置防御塔") || prompt.includes("塔") || prompt.includes("防御");
+    const hasPath = hasVar("路径") || prompt.includes("路径") || prompt.includes("路线");
+    
+    const eventBegin = {
+        id: "n" + nextId++,
+        type: "EventBeginPlay",
+        label: "Event BeginPlay",
+        x: x, y: y,
+        color: "#1a1a2e",
+        inputs: [],
+        outputs: [{ name: "Then", type: "Execution" }],
+        properties: {}
+    };
+    nodes.push(eventBegin);
+    let prev = eventBegin;
+    y += nodeH + vGap;
+    
+    if (hasHealth) {
+        variables.push({ name: "Health", type: "Integer", defaultValue: "100", description: "玩家生命值" });
+        const setHealth = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set Health = 100",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Health" }
+        };
+        nodes.push(setHealth);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setHealth.id, toPin: "In" });
+        prev = setHealth;
+        y += nodeH + vGap;
+    }
+    
+    if (hasWave) {
+        variables.push({ name: "CurrentWave", type: "Integer", defaultValue: "1", description: "当前波次" });
+        variables.push({ name: "EnemyCount", type: "Integer", defaultValue: "0", description: "敌人数量" });
+        const setWave = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set Wave = 1",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "CurrentWave" }
+        };
+        nodes.push(setWave);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setWave.id, toPin: "In" });
+        prev = setWave;
+        y += nodeH + vGap;
+    }
+    
+    if (hasInventory) {
+        variables.push({ name: "InventorySize", type: "Integer", defaultValue: "0", description: "背包物品数" });
+        variables.push({ name: "MaxInventory", type: "Integer", defaultValue: "5", description: "背包容量" });
+        const setInv = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set Inventory = 0",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "InventorySize" }
+        };
+        nodes.push(setInv);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setInv.id, toPin: "In" });
+        prev = setInv;
+        y += nodeH + vGap;
+    }
+    
+    if (hasScore) {
+        variables.push({ name: "Score", type: "Integer", defaultValue: "0", description: "玩家分数" });
+        const setScore = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set Score = 0",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Score" }
+        };
+        nodes.push(setScore);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setScore.id, toPin: "In" });
+        prev = setScore;
+        y += nodeH + vGap;
+    }
+    
+    if (hasLevel) {
+        variables.push({ name: "Level", type: "Integer", defaultValue: "1", description: "当前等级" });
+        const setLevel = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set Level = 1",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Level" }
+        };
+        nodes.push(setLevel);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setLevel.id, toPin: "In" });
+        prev = setLevel;
+        y += nodeH + vGap;
+    }
+    
+    if (hasGold) {
+        variables.push({ name: "Gold", type: "Integer", defaultValue: "0", description: "金币数量" });
+        const setGold = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set Gold = 0",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Gold" }
+        };
+        nodes.push(setGold);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setGold.id, toPin: "In" });
+        prev = setGold;
+        y += nodeH + vGap;
+    }
+    
+    if (hasExp) {
+        variables.push({ name: "Exp", type: "Integer", defaultValue: "0", description: "经验值" });
+        const setExp = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set Exp = 0",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Exp" }
+        };
+        nodes.push(setExp);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setExp.id, toPin: "In" });
+        prev = setExp;
+        y += nodeH + vGap;
+    }
+    
+    if (hasTower) {
+        variables.push({ name: "TowerCount", type: "Integer", defaultValue: "0", description: "防御塔数量" });
+        const setTower = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set TowerCount = 0",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "TowerCount" }
+        };
+        nodes.push(setTower);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setTower.id, toPin: "In" });
+        prev = setTower;
+        y += nodeH + vGap;
+    }
+    
+    if (hasSpeed) {
+        variables.push({ name: "Speed", type: "Float", defaultValue: "1.0", description: "移动速度" });
+        const setSpeed = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set Speed = 1.0",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Speed" }
+        };
+        nodes.push(setSpeed);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setSpeed.id, toPin: "In" });
+        prev = setSpeed;
+        y += nodeH + vGap;
+    }
+    
+    if (hasJump) {
+        variables.push({ name: "IsGrounded", type: "Boolean", defaultValue: "true", description: "是否在地面" });
+        const setGrounded = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set IsGrounded = True",
+            x: x, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "IsGrounded" }
+        };
+        nodes.push(setGrounded);
+        connections.push({ fromNode: prev.id, fromPin: "Then", toNode: setGrounded.id, toPin: "In" });
+        prev = setGrounded;
+        y += nodeH + vGap;
+    }
+    
+    const eventTick = {
+        id: "n" + nextId++,
+        type: "EventTick",
+        label: "Event Tick",
+        x: x, y: y,
+        color: "#1a1a2e",
+        inputs: [],
+        outputs: [{ name: "Then", type: "Execution" }],
+        properties: {}
+    };
+    nodes.push(eventTick);
+    
+    let tickNext = eventTick;
+    
+    if (hasSpeed) {
+        const branchSpeed = {
+            id: "n" + nextId++,
+            type: "Branch",
+            label: "Speed > 100?",
+            x: x + nodeW + hGap, y: y,
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+            outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(branchSpeed);
+        connections.push({ fromNode: tickNext.id, fromPin: "Then", toNode: branchSpeed.id, toPin: "In" });
+        
+        const nitroBoost = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Nitro Boost",
+            x: x + (nodeW + hGap) * 2, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Speed" }
+        };
+        nodes.push(nitroBoost);
+        connections.push({ fromNode: branchSpeed.id, fromPin: "True", toNode: nitroBoost.id, toPin: "In" });
+        
+        const delayNitro = {
+            id: "n" + nextId++,
+            type: "Delay",
+            label: "Delay 3s",
+            x: x + (nodeW + hGap) * 3, y: y,
+            color: "#e94560",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Duration", type: "Float" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { Duration: "3.0" }
+        };
+        nodes.push(delayNitro);
+        connections.push({ fromNode: nitroBoost.id, fromPin: "Then", toNode: delayNitro.id, toPin: "In" });
+        
+        const resetSpeed = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Reset Speed",
+            x: x + (nodeW + hGap) * 4, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Speed" }
+        };
+        nodes.push(resetSpeed);
+        connections.push({ fromNode: delayNitro.id, fromPin: "Then", toNode: resetSpeed.id, toPin: "In" });
+        
+        tickNext = branchSpeed;
+        y += nodeH + vGap;
+    }
+    
+    if (hasCollision && hasSpeed) {
+        const branchCollision = {
+            id: "n" + nextId++,
+            type: "Branch",
+            label: "Hit Obstacle?",
+            x: x + nodeW + hGap, y: y,
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+            outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(branchCollision);
+        connections.push({ fromNode: tickNext.id, fromPin: "Then", toNode: branchCollision.id, toPin: "In" });
+        
+        const halfSpeed = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Speed /= 2",
+            x: x + (nodeW + hGap) * 2, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Speed" }
+        };
+        nodes.push(halfSpeed);
+        connections.push({ fromNode: branchCollision.id, fromPin: "True", toNode: halfSpeed.id, toPin: "In" });
+        
+        tickNext = branchCollision;
+        y += nodeH + vGap;
+    }
+    
+    if (hasScore) {
+        const branchLap = {
+            id: "n" + nextId++,
+            type: "Branch",
+            label: "Lap Complete?",
+            x: x + nodeW + hGap, y: y,
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+            outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(branchLap);
+        connections.push({ fromNode: tickNext.id, fromPin: "Then", toNode: branchLap.id, toPin: "In" });
+        
+        const addScore = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Score++",
+            x: x + (nodeW + hGap) * 2, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Score" }
+        };
+        nodes.push(addScore);
+        connections.push({ fromNode: branchLap.id, fromPin: "True", toNode: addScore.id, toPin: "In" });
+        
+        const branchWin = {
+            id: "n" + nextId++,
+            type: "Branch",
+            label: "Score >= 3?",
+            x: x + (nodeW + hGap) * 3, y: y,
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+            outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(branchWin);
+        connections.push({ fromNode: addScore.id, fromPin: "Then", toNode: branchWin.id, toPin: "In" });
+        
+        const victory = {
+            id: "n" + nextId++,
+            type: "PrintString",
+            label: "Victory!",
+            x: x + (nodeW + hGap) * 4, y: y,
+            color: "#533483",
+            inputs: [{ name: "In", type: "Execution" }, { name: "String", type: "String" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { String: "游戏胜利" }
+        };
+        nodes.push(victory);
+        connections.push({ fromNode: branchWin.id, fromPin: "True", toNode: victory.id, toPin: "In" });
+        
+        tickNext = branchLap;
+        y += nodeH + vGap;
+    }
+    
+    y += nodeH + vGap;
+    
+    if (hasHealth && (hasGameOver || hasCondition("生命") || hasCondition("血量"))) {
+        const branchHealth = {
+            id: "n" + nextId++,
+            type: "Branch",
+            label: "Health <= 0?",
+            x: x + nodeW + hGap, y: y - (nodeH + vGap),
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+            outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(branchHealth);
+        connections.push({ fromNode: eventTick.id, fromPin: "Then", toNode: branchHealth.id, toPin: "In" });
+        
+        const gameOver = {
+            id: "n" + nextId++,
+            type: "PrintString",
+            label: "Game Over!",
+            x: x + nodeW + hGap, y: y,
+            color: "#533483",
+            inputs: [{ name: "In", type: "Execution" }, { name: "String", type: "String" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { String: "游戏结束" }
+        };
+        nodes.push(gameOver);
+        connections.push({ fromNode: branchHealth.id, fromPin: "True", toNode: gameOver.id, toPin: "In" });
+        prev = branchHealth;
+        y += nodeH + vGap;
+    }
+    
+    let jumpEntryNode = null;
+    if (hasJump) {
+        jumpEntryNode = {
+            id: "n" + nextId++,
+            type: "Branch",
+            label: "IsGrounded?",
+            x: x + nodeW + hGap, y: y,
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+            outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(jumpEntryNode);
+        
+        const jumpAction = {
+            id: "n" + nextId++,
+            type: "AddActorWorldOffset",
+            label: "Jump",
+            x: x + (nodeW + hGap) * 2, y: y,
+            color: "#533483",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Offset", type: "Vector" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { Offset: "(0, 0, 300)" }
+        };
+        nodes.push(jumpAction);
+        connections.push({ fromNode: jumpEntryNode.id, fromPin: "True", toNode: jumpAction.id, toPin: "In" });
+        
+        const setNotGrounded = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set IsGrounded = False",
+            x: x + (nodeW + hGap) * 2, y: y + nodeH + vGap,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "IsGrounded" }
+        };
+        nodes.push(setNotGrounded);
+        connections.push({ fromNode: jumpAction.id, fromPin: "Then", toNode: setNotGrounded.id, toPin: "In" });
+        y += (nodeH + vGap) * 2;
+    }
+    
+    if (hasItem || hasCollision) {
+        x = 50;
+        y = Math.max(y, 500);
+        
+        const eventOverlap = {
+            id: "n" + nextId++,
+            type: "EventActorBeginOverlap",
+            label: "Event Overlap",
+            x: x, y: y,
+            color: "#1a1a2e",
+            inputs: [],
+            outputs: [{ name: "Then", type: "Execution" }, { name: "OtherActor", type: "Actor" }],
+            properties: {}
+        };
+        nodes.push(eventOverlap);
+        
+        const castNode = {
+            id: "n" + nextId++,
+            type: "CastTo",
+            label: hasItem ? "Cast To Item" : "Cast To Actor",
+            x: x + nodeW + hGap, y: y,
+            color: "#e94560",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Object", type: "Object" }],
+            outputs: [{ name: "Success", type: "Execution" }, { name: "Failure", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(castNode);
+        connections.push({ fromNode: eventOverlap.id, fromPin: "Then", toNode: castNode.id, toPin: "In" });
+        
+        if (hasInventory) {
+            const branchInvFull = {
+                id: "n" + nextId++,
+                type: "Branch",
+                label: "Inventory Full?",
+                x: x + (nodeW + hGap) * 2, y: y,
+                color: "#0f3460",
+                inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+                outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+                properties: {}
+            };
+            nodes.push(branchInvFull);
+            connections.push({ fromNode: castNode.id, fromPin: "Success", toNode: branchInvFull.id, toPin: "In" });
+            
+            const destroyItem = {
+                id: "n" + nextId++,
+                type: "DestroyActor",
+                label: "Destroy Item",
+                x: x + (nodeW + hGap) * 3, y: y,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }, { name: "Target", type: "Actor" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: {}
+            };
+            nodes.push(destroyItem);
+            connections.push({ fromNode: branchInvFull.id, fromPin: "False", toNode: destroyItem.id, toPin: "In" });
+            
+            const incrementInv = {
+                id: "n" + nextId++,
+                type: "SetVariable",
+                label: "Inventory++",
+                x: x + (nodeW + hGap) * 3, y: y + nodeH + vGap,
+                color: "#16213e",
+                inputs: [{ name: "In", type: "Execution" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: { VariableName: "InventorySize" }
+            };
+            nodes.push(incrementInv);
+            connections.push({ fromNode: destroyItem.id, fromPin: "Then", toNode: incrementInv.id, toPin: "In" });
+            
+            const pickupMsg = {
+                id: "n" + nextId++,
+                type: "PrintString",
+                label: "Item Picked Up!",
+                x: x + (nodeW + hGap) * 3, y: y + (nodeH + vGap) * 2,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }, { name: "String", type: "String" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: { String: "拾取成功" }
+            };
+            nodes.push(pickupMsg);
+            connections.push({ fromNode: incrementInv.id, fromPin: "Then", toNode: pickupMsg.id, toPin: "In" });
+            
+            const fullMsg = {
+                id: "n" + nextId++,
+                type: "PrintString",
+                label: "Inventory Full!",
+                x: x + (nodeW + hGap) * 3, y: y + nodeH + vGap,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }, { name: "String", type: "String" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: { String: "背包已满" }
+            };
+            nodes.push(fullMsg);
+            connections.push({ fromNode: branchInvFull.id, fromPin: "True", toNode: fullMsg.id, toPin: "In" });
+            y += (nodeH + vGap) * 3;
+        } else if (hasDamage) {
+            const applyDamage = {
+                id: "n" + nextId++,
+                type: "AddActorWorldOffset",
+                label: "Apply Damage",
+                x: x + (nodeW + hGap) * 2, y: y,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: { Description: "造成伤害" }
+            };
+            nodes.push(applyDamage);
+            connections.push({ fromNode: castNode.id, fromPin: "Success", toNode: applyDamage.id, toPin: "In" });
+            y += nodeH + vGap;
+        }
+        
+        if (hasTower) {
+            const towerAttack = {
+                id: "n" + nextId++,
+                type: "SpawnActor",
+                label: "Tower Attack",
+                x: x + (nodeW + hGap) * 2, y: y + nodeH + vGap,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }, { name: "Class", type: "ActorClass" }],
+                outputs: [{ name: "Return Value", type: "Actor" }, { name: "Then", type: "Execution" }],
+                properties: { Class: "BP_Projectile" }
+            };
+            nodes.push(towerAttack);
+            connections.push({ fromNode: castNode.id, fromPin: "Success", toNode: towerAttack.id, toPin: "In" });
+            y += nodeH + vGap;
+        }
+        
+        if (hasGold && hasEnemy) {
+            const addGold = {
+                id: "n" + nextId++,
+                type: "SetVariable",
+                label: "Add Gold",
+                x: x + (nodeW + hGap) * 3, y: y + nodeH + vGap,
+                color: "#16213e",
+                inputs: [{ name: "In", type: "Execution" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: { VariableName: "Gold" }
+            };
+            nodes.push(addGold);
+            connections.push({ fromNode: castNode.id, fromPin: "Success", toNode: addGold.id, toPin: "In" });
+            y += nodeH + vGap;
+        }
+    }
+    
+    if (hasInput || hasPotion || hasBomb || hasKey || (hasJump && prompt.includes("按"))) {
+        x = 50;
+        
+        const inputNode = {
+            id: "n" + nextId++,
+            type: "InputAction",
+            label: "Input Action",
+            x: x, y: y,
+            color: "#1a1a2e",
+            inputs: [],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(inputNode);
+        
+        if (hasJump && jumpEntryNode) {
+            connections.push({ fromNode: inputNode.id, fromPin: "Then", toNode: jumpEntryNode.id, toPin: "In" });
+        }
+        
+        if (hasPotion) {
+            const healPlayer = {
+                id: "n" + nextId++,
+                type: "AddActorWorldOffset",
+                label: "Heal +30",
+                x: x + nodeW + hGap, y: y,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: { Description: "恢复生命值" }
+            };
+            nodes.push(healPlayer);
+            if (!hasJump) {
+                connections.push({ fromNode: inputNode.id, fromPin: "Then", toNode: healPlayer.id, toPin: "In" });
+            }
+        }
+        
+        if (hasBomb) {
+            const explode = {
+                id: "n" + nextId++,
+                type: "SpawnActor",
+                label: "Spawn Explosion",
+                x: x + nodeW + hGap, y: y + nodeH + vGap,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }, { name: "Class", type: "ActorClass" }],
+                outputs: [{ name: "Return Value", type: "Actor" }, { name: "Then", type: "Execution" }],
+                properties: { Class: "BP_Explosion" }
+            };
+            nodes.push(explode);
+            connections.push({ fromNode: inputNode.id, fromPin: "Then", toNode: explode.id, toPin: "In" });
+        }
+        
+        if (hasKey) {
+            const openDoor = {
+                id: "n" + nextId++,
+                type: "DestroyActor",
+                label: "Open Door",
+                x: x + nodeW + hGap, y: y + (nodeH + vGap) * 2,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }, { name: "Target", type: "Actor" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: {}
+            };
+            nodes.push(openDoor);
+            connections.push({ fromNode: inputNode.id, fromPin: "Then", toNode: openDoor.id, toPin: "In" });
+        }
+        y += (nodeH + vGap) * 3;
+    } else if (hasJump && !prompt.includes("按")) {
+        // 如果没有按键输入但检测到跳跃，使用EventTick作为入口
+        if (jumpEntryNode) {
+            connections.push({ fromNode: eventTick.id, fromPin: "Then", toNode: jumpEntryNode.id, toPin: "In" });
+        }
+    }
+    
+    if (hasWave || hasSpawn || hasLoop()) {
+        x = 50;
+        y = Math.max(y, 800);
+        
+        const checkWave = {
+            id: "n" + nextId++,
+            type: "Branch",
+            label: "Wave >= 5?",
+            x: x, y: y,
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+            outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(checkWave);
+        
+        if (hasVictory) {
+            const victory = {
+                id: "n" + nextId++,
+                type: "PrintString",
+                label: "Victory!",
+                x: x + nodeW + hGap, y: y,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }, { name: "String", type: "String" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: { String: "胜利！" }
+            };
+            nodes.push(victory);
+            connections.push({ fromNode: checkWave.id, fromPin: "True", toNode: victory.id, toPin: "In" });
+        }
+        
+        const loopSpawn = {
+            id: "n" + nextId++,
+            type: "Loop",
+            label: "Loop 3 Times",
+            x: x + nodeW + hGap, y: y,
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Count", type: "Integer" }],
+            outputs: [{ name: "Loop Body", type: "Execution" }, { name: "Completed", type: "Execution" }],
+            properties: { Count: 3 }
+        };
+        nodes.push(loopSpawn);
+        connections.push({ fromNode: checkWave.id, fromPin: "False", toNode: loopSpawn.id, toPin: "In" });
+        
+        if (hasTimer) {
+            const delaySpawn = {
+                id: "n" + nextId++,
+                type: "Delay",
+                label: "Delay 2s",
+                x: x + (nodeW + hGap) * 2, y: y,
+                color: "#e94560",
+                inputs: [{ name: "In", type: "Execution" }, { name: "Duration", type: "Float" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: { Duration: 2.0 }
+            };
+            nodes.push(delaySpawn);
+            connections.push({ fromNode: loopSpawn.id, fromPin: "Loop Body", toNode: delaySpawn.id, toPin: "In" });
+        }
+        
+        const spawnEnemy = {
+            id: "n" + nextId++,
+            type: "SpawnActor",
+            label: "Spawn Enemy",
+            x: x + (nodeW + hGap) * 2, y: y + nodeH + vGap,
+            color: "#533483",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Class", type: "ActorClass" }],
+            outputs: [{ name: "Return Value", type: "Actor" }, { name: "Then", type: "Execution" }],
+            properties: { Class: "BP_Enemy" }
+        };
+        nodes.push(spawnEnemy);
+        
+        if (hasTimer) {
+            connections.push({ fromNode: nodes[nodes.length - 2].id, fromPin: "Then", toNode: spawnEnemy.id, toPin: "In" });
+        } else {
+            connections.push({ fromNode: loopSpawn.id, fromPin: "Loop Body", toNode: spawnEnemy.id, toPin: "In" });
+        }
+        
+        if (hasSound) {
+            const playSound = {
+                id: "n" + nextId++,
+                type: "PlaySound",
+                label: "Play Sound",
+                x: x + (nodeW + hGap) * 2, y: y + (nodeH + vGap) * 2,
+                color: "#533483",
+                inputs: [{ name: "In", type: "Execution" }, { name: "Sound", type: "SoundAsset" }],
+                outputs: [{ name: "Then", type: "Execution" }],
+                properties: {}
+            };
+            nodes.push(playSound);
+            connections.push({ fromNode: loopSpawn.id, fromPin: "Completed", toNode: playSound.id, toPin: "In" });
+        }
+        
+        const delayNext = {
+            id: "n" + nextId++,
+            type: "Delay",
+            label: "Delay 3s",
+            x: x + (nodeW + hGap) * 3, y: y,
+            color: "#e94560",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Duration", type: "Float" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { Duration: 3.0 }
+        };
+        nodes.push(delayNext);
+        
+        const incrementWave = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Wave++",
+            x: x + (nodeW + hGap) * 3, y: y + nodeH + vGap,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "CurrentWave" }
+        };
+        nodes.push(incrementWave);
+        connections.push({ fromNode: delayNext.id, fromPin: "Then", toNode: incrementWave.id, toPin: "In" });
+        connections.push({ fromNode: incrementWave.id, fromPin: "Then", toNode: checkWave.id, toPin: "In" });
+    }
+    
+    if (hasExp) {
+        x = 50;
+        y = Math.max(y, 1000);
+        
+        const branchExp = {
+            id: "n" + nextId++,
+            type: "Branch",
+            label: "Exp >= 100?",
+            x: x, y: y,
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+            outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(branchExp);
+        
+        const levelUp = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Level++",
+            x: x + nodeW + hGap, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Level" }
+        };
+        nodes.push(levelUp);
+        connections.push({ fromNode: branchExp.id, fromPin: "True", toNode: levelUp.id, toPin: "In" });
+        
+        const resetExp = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Set Exp = 0",
+            x: x + (nodeW + hGap) * 2, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Exp" }
+        };
+        nodes.push(resetExp);
+        connections.push({ fromNode: levelUp.id, fromPin: "Then", toNode: resetExp.id, toPin: "In" });
+        
+        const addExp = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Add Exp",
+            x: x + nodeW + hGap, y: y + nodeH + vGap,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Exp" }
+        };
+        nodes.push(addExp);
+        connections.push({ fromNode: branchExp.id, fromPin: "False", toNode: addExp.id, toPin: "In" });
+        y += (nodeH + vGap) * 2;
+    }
+    
+    if (hasGold && hasTower) {
+        x = 50;
+        
+        const buyTower = {
+            id: "n" + nextId++,
+            type: "Branch",
+            label: "Gold >= TowerCost?",
+            x: x, y: y,
+            color: "#0f3460",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Condition", type: "Boolean" }],
+            outputs: [{ name: "True", type: "Execution" }, { name: "False", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(buyTower);
+        
+        const spawnTower = {
+            id: "n" + nextId++,
+            type: "SpawnActor",
+            label: "Spawn Tower",
+            x: x + nodeW + hGap, y: y,
+            color: "#533483",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Class", type: "ActorClass" }],
+            outputs: [{ name: "Return Value", type: "Actor" }, { name: "Then", type: "Execution" }],
+            properties: { Class: "BP_Tower" }
+        };
+        nodes.push(spawnTower);
+        connections.push({ fromNode: buyTower.id, fromPin: "True", toNode: spawnTower.id, toPin: "In" });
+        
+        const deductGold = {
+            id: "n" + nextId++,
+            type: "SetVariable",
+            label: "Deduct Gold",
+            x: x + (nodeW + hGap) * 2, y: y,
+            color: "#16213e",
+            inputs: [{ name: "In", type: "Execution" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { VariableName: "Gold" }
+        };
+        nodes.push(deductGold);
+        connections.push({ fromNode: spawnTower.id, fromPin: "Then", toNode: deductGold.id, toPin: "In" });
+        
+        const notEnoughMsg = {
+            id: "n" + nextId++,
+            type: "PrintString",
+            label: "Not Enough Gold!",
+            x: x + nodeW + hGap, y: y + nodeH + vGap,
+            color: "#533483",
+            inputs: [{ name: "In", type: "Execution" }, { name: "String", type: "String" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: { String: "金币不足" }
+        };
+        nodes.push(notEnoughMsg);
+        connections.push({ fromNode: buyTower.id, fromPin: "False", toNode: notEnoughMsg.id, toPin: "In" });
+        y += (nodeH + vGap) * 2;
+    }
+    
+    if (hasMove || hasSpeed) {
+        const moveNode = {
+            id: "n" + nextId++,
+            type: "AddActorWorldOffset",
+            label: "Move Actor",
+            x: x, y: y + (nodeH + vGap) * 2,
+            color: "#533483",
+            inputs: [{ name: "In", type: "Execution" }, { name: "Offset", type: "Vector" }],
+            outputs: [{ name: "Then", type: "Execution" }],
+            properties: {}
+        };
+        nodes.push(moveNode);
+    }
+    
+    return {
+        nodes: nodes,
+        connections: connections,
+        variables: variables,
+        description: elements?.description || "基于AI分析生成的蓝图逻辑：" + prompt
+    };
+}
+
+function autoLayoutNodes(blueprint) {
+    const nodeWidth = 180;
+    const nodeHeight = 80;
+    const horizontalGap = 80;
+    const verticalGap = 60;
+    
+    let currentX = 50;
+    let currentY = 100;
+    let columnCount = 0;
+    
+    blueprint.nodes.forEach((node, index) => {
+        if (index === 0) {
+            node.x = 50;
+            node.y = 50;
+            currentY = 150;
+            return;
+        }
+        
+        if (currentY > 700) {
+            currentX += nodeWidth + horizontalGap;
+            currentY = 50;
+            columnCount++;
+        }
+        
+        node.x = currentX;
+        node.y = currentY;
+        currentY += nodeHeight + verticalGap;
+    });
+    
+    return blueprint;
+}
+
+function parseBlueprintJson(text) {
+    try {
+        let jsonStr = text;
+        const match = jsonStr.match(/\\{[\\s\\S]*\\}/);
+        if (match) jsonStr = match[0];
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        return generateFallbackBlueprint(text);
+    }
+}
+
+function generateFallbackBlueprint(text) {
+    return {
+        nodes: [
+            { id: "event_1", type: "EventBeginPlay", label: "Event BeginPlay", x: 50, y: 100, color: "#1a1a2e", inputs: [], outputs: [{ name: "Then", type: "Execution" }], properties: {} },
+            { id: "print_1", type: "PrintString", label: "Print String", x: 250, y: 100, color: "#533483", inputs: [{ name: "In", type: "Execution" }], outputs: [{ name: "Then", type: "Execution" }], properties: {} }
+        ],
+        connections: [{ fromNode: "event_1", fromPin: "Then", toNode: "print_1", toPin: "In" }],
+        variables: [],
+        description: text
+    };
+}
+
+function validateAndFixBlueprint(bp) {
+    if (!bp.nodes) bp.nodes = [];
+    if (!bp.connections) bp.connections = [];
+    if (!bp.variables) bp.variables = [];
+    
+    const w = 200, h = 80, hg = 60, vg = 40;
+    
+    const nodeMap = new Map();
+    bp.nodes.forEach(n => nodeMap.set(n.id, n));
+    
+    const inDegree = new Map();
+    bp.nodes.forEach(n => inDegree.set(n.id, 0));
+    bp.connections.forEach(c => {
+        if (inDegree.has(c.toNode)) {
+            inDegree.set(c.toNode, inDegree.get(c.toNode) + 1);
+        }
+    });
+    
+    const levels = new Map();
+    const queue = [];
+    
+    bp.nodes.forEach(n => {
+        if (inDegree.get(n.id) === 0) {
+            queue.push(n);
+            levels.set(n.id, 0);
+        }
+    });
+    
+    if (queue.length === 0 && bp.nodes.length > 0) {
+        const startNode = bp.nodes[0];
+        queue.push(startNode);
+        levels.set(startNode.id, 0);
+    }
+    
+    const processed = new Set();
+    while (queue.length > 0) {
+        const node = queue.shift();
+        if (processed.has(node.id)) continue;
+        processed.add(node.id);
+        
+        const currentLevel = levels.get(node.id);
+        const outgoing = bp.connections.filter(c => c.fromNode === node.id);
+        
+        outgoing.forEach(c => {
+            const target = nodeMap.get(c.toNode);
+            if (target) {
+                const newLevel = currentLevel + 1;
+                if (!levels.has(target.id) || levels.get(target.id) < newLevel) {
+                    levels.set(target.id, newLevel);
+                }
+                
+                const targetInDegree = bp.connections.filter(cc => cc.toNode === target.id).length;
+                const processedFrom = bp.connections.filter(cc => 
+                    cc.toNode === target.id && processed.has(cc.fromNode)
+                ).length;
+                
+                if (processedFrom >= targetInDegree) {
+                    queue.push(target);
+                }
+            }
+        });
+    }
+    
+    bp.nodes.forEach(n => {
+        if (!levels.has(n.id)) {
+            const maxLevel = Math.max(0, ...Array.from(levels.values()));
+            levels.set(n.id, maxLevel + 1);
+        }
+    });
+    
+    const levelGroups = new Map();
+    levels.forEach((level, nodeId) => {
+        if (!levelGroups.has(level)) {
+            levelGroups.set(level, []);
+        }
+        levelGroups.get(level).push(nodeMap.get(nodeId));
+    });
+    
+    const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
+    
+    sortedLevels.forEach((level) => {
+        const nodesInLevel = levelGroups.get(level);
+        const totalHeight = nodesInLevel.length * (h + vg);
+        const startY = Math.max(50, 400 - totalHeight / 2);
+        
+        nodesInLevel.forEach((node, index) => {
+            node.x = 50 + level * (w + hg);
+            node.y = startY + index * (h + vg);
+        });
+    });
+    
+    const ids = new Set(bp.nodes.map(n => n.id));
+    bp.connections = bp.connections.filter(c => ids.has(c.fromNode) && ids.has(c.toNode));
+    
+    return bp;
+}
+function renderBlueprint(bp) {
+    canvas.innerHTML = "";
+    bp.connections.forEach(c => {
+        const from = bp.nodes.find(n => n.id === c.fromNode);
+        const to = bp.nodes.find(n => n.id === c.toNode);
+        if (from && to) {
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("class", "connection");
+            path.setAttribute("d", "M " + from.x + " " + (from.y + 40) + " C " + (from.x + 50) + " " + (from.y + 40) + ", " + (to.x + 110) + " " + (to.y + 40) + ", " + (to.x + 160) + " " + (to.y + 40));
+            canvas.appendChild(path);
+        }
+    });
+    bp.nodes.forEach(node => {
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "node");
+        g.setAttribute("transform", "translate(" + node.x + "," + node.y + ")");
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("width", "160");
+        rect.setAttribute("height", "80");
+        rect.setAttribute("rx", "8");
+        rect.setAttribute("fill", node.color || "#1a1a2e");
+        rect.setAttribute("stroke", "#333");
+        g.appendChild(rect);
+        const hRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        hRect.setAttribute("width", "160");
+        hRect.setAttribute("height", "24");
+        hRect.setAttribute("rx", "8");
+        hRect.setAttribute("fill", "#0f0f1a");
+        g.appendChild(hRect);
+        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        label.setAttribute("x", "80");
+        label.setAttribute("y", "16");
+        label.setAttribute("text-anchor", "middle");
+        label.setAttribute("fill", "#fff");
+        label.setAttribute("font-size", "11");
+        label.textContent = node.label;
+        g.appendChild(label);
+        node.outputs.forEach((o, i) => {
+            const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            pin.setAttribute("class", "pin pin-output");
+            pin.setAttribute("cx", "-5");
+            pin.setAttribute("cy", 30 + i * 14);
+            pin.setAttribute("r", "5");
+            g.appendChild(pin);
+        });
+        node.inputs.forEach((i, p) => {
+            const pin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            pin.setAttribute("class", "pin pin-input");
+            pin.setAttribute("cx", "165");
+            pin.setAttribute("cy", 30 + p * 14);
+            pin.setAttribute("r", "5");
+            g.appendChild(pin);
+        });
+        canvas.appendChild(g);
+        g.addEventListener("mousedown", e => {
+            e.stopPropagation();
+            selectedNode = node;
+            isDragging = true;
+            const rect = canvasContainer.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            dragOffset.x = mouseX - canvasOffset.x - node.x * zoom;
+            dragOffset.y = mouseY - canvasOffset.y - node.y * zoom;
+        });
+        
+        g.addEventListener("mouseenter", e => {
+            const tooltip = document.getElementById("node-tooltip");
+            const nodeInfo = NODE_DESCRIPTIONS[node.type] || {
+                name: node.type,
+                description: node.label,
+                category: "自定义节点",
+                example: "用户定义的逻辑"
+            };
+            
+            tooltip.innerHTML = `
+                <div style="color:#00d4ff;font-weight:bold;margin-bottom:8px;font-size:14px">${nodeInfo.name}</div>
+                <div style="color:#888;font-size:11px;margin-bottom:6px">【${nodeInfo.category}】</div>
+                <div style="color:#ccc;font-size:12px;line-height:1.5;margin-bottom:8px">${nodeInfo.description}</div>
+                <div style="color:#666;font-size:11px;border-top:1px solid #333;padding-top:8px">
+                    <span style="color:#00d4ff">示例：</span>${nodeInfo.example}
+                </div>
+            `;
+            tooltip.style.display = "block";
+        });
+        
+        g.addEventListener("mousemove", e => {
+            const tooltip = document.getElementById("node-tooltip");
+            const containerRect = canvasContainer.getBoundingClientRect();
+            let tooltipX = e.clientX - containerRect.left + 15;
+            let tooltipY = e.clientY - containerRect.top + 15;
+            
+            if (tooltipX + 280 > containerRect.width) {
+                tooltipX = e.clientX - containerRect.left - 295;
+            }
+            if (tooltipY + 150 > containerRect.height) {
+                tooltipY = e.clientY - containerRect.top - 155;
+            }
+            
+            tooltip.style.left = tooltipX + "px";
+            tooltip.style.top = tooltipY + "px";
+        });
+        
+        g.addEventListener("mouseleave", () => {
+            const tooltip = document.getElementById("node-tooltip");
+            tooltip.style.display = "none";
+        });
+    });
+    nodeCount.textContent = bp.nodes.length;
+    
+    if (!isDragging) {
+        fitCanvasToNodes(bp);
+    }
+}
+
+function fitCanvasToNodes(bp) {
+    if (!bp || !bp.nodes || bp.nodes.length === 0) return;
+    
+    const containerWidth = canvasContainer.clientWidth;
+    const containerHeight = canvasContainer.clientHeight;
+    
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    
+    bp.nodes.forEach(node => {
+        minX = Math.min(minX, node.x);
+        maxX = Math.max(maxX, node.x + 160);
+        minY = Math.min(minY, node.y);
+        maxY = Math.max(maxY, node.y + 80);
+    });
+    
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+    
+    const padding = 50;
+    
+    const scaleX = (containerWidth - padding * 2) / Math.max(contentWidth, 1);
+    const scaleY = (containerHeight - padding * 2) / Math.max(contentHeight, 1);
+    
+    zoom = Math.max(0.1, Math.min(1.5, Math.min(scaleX, scaleY)));
+    
+    const centerX = containerWidth / 2;
+    const centerY = containerHeight / 2;
+    const contentCenterX = minX + contentWidth / 2;
+    const contentCenterY = minY + contentHeight / 2;
+    
+    canvasOffset.x = centerX - contentCenterX * zoom;
+    canvasOffset.y = centerY - contentCenterY * zoom;
+    
+    canvas.style.transform = "translate(" + canvasOffset.x + "px," + canvasOffset.y + "px) scale(" + zoom + ")";
+    document.getElementById("zoom-level").textContent = Math.round(zoom * 100) + "%";
+}
+
+function updateVariablesPanel(vars) {
+    variablesList.innerHTML = "";
+    if (!vars || vars.length === 0) {
+        variablesList.innerHTML = "<p style='color:#666;font-size:12px'>暂无变量</p>";
+        return;
+    }
+    vars.forEach(v => {
+        const item = document.createElement("div");
+        item.className = "variable-item";
+        item.innerHTML = "<span class='variable-name'>" + v.name + "</span><span class='variable-type'>" + v.type + "</span>";
+        variablesList.appendChild(item);
+    });
+}
+
+function saveToHistory(prompt, bp) {
+    const entry = { id: Date.now().toString(), timestamp: Date.now(), prompt: prompt, blueprint: bp };
+    history.unshift(entry);
+    if (history.length > 20) history = history.slice(0, 20);
+    localStorage.setItem("blueprintHistory", JSON.stringify(history));
+}
+function showHistory() {
+    const panel = document.getElementById("history-panel");
+    const list = document.getElementById("history-list");
+    if (panel.style.display === "block") { panel.style.display = "none"; return; }
+    list.innerHTML = "";
+    if (history.length === 0) {
+        list.innerHTML = "<p style='color:#666;font-size:12px'>暂无记录</p>";
+    } else {
+        history.forEach(e => {
+            const item = document.createElement("div");
+            item.className = "history-item";
+            item.textContent = e.prompt.substring(0, 50) + (e.prompt.length > 50 ? "..." : "");
+            item.addEventListener("click", () => {
+                currentBlueprint = e.blueprint;
+                renderBlueprint(e.blueprint);
+                updateVariablesPanel(e.blueprint.variables);
+                promptInput.value = e.prompt;
+                panel.style.display = "none";
+            });
+            list.appendChild(item);
+        });
+    }
+    panel.style.display = "block";
+}
+
+function exportJSON() {
+    if (!currentBlueprint) { showMessage("请先生成蓝图"); return; }
+    const data = JSON.stringify(currentBlueprint, null, 2);
+    downloadFile(data, "blueprint.json", "application/json");
+}
+
+function exportMarkdown() {
+    if (!currentBlueprint) { showMessage("请先生成蓝图"); return; }
+    let md = "# UE蓝图逻辑说明\\n\\n## 需求描述\\n" + promptInput.value + "\\n\\n## 逻辑说明\\n" + (currentBlueprint.description || "暂无") + "\\n\\n## 变量列表\\n";
+    if (!currentBlueprint.variables || currentBlueprint.variables.length === 0) {
+        md += "无\\n";
+    } else {
+        md += "|变量名|类型|默认值|说明|\\n|------|------|--------|------|\\n";
+        currentBlueprint.variables.forEach(v => {
+            md += "|" + v.name + "|" + v.type + "|" + (v.defaultValue || "-") + "|" + (v.description || "-") + "|\\n";
+        });
+    }
+    md += "\\n## 节点列表\\n|ID|类型|标签|\\n|----|------|------|\\n";
+    currentBlueprint.nodes.forEach(n => {
+        md += "|" + n.id + "|" + n.type + "|" + n.label + "|\\n";
+    });
+    downloadFile(md, "blueprint.md", "text/markdown");
+    showMessage("Markdown导出完成");
+}
+
+function downloadFile(content, filename, type) {
+    const blob = new Blob([content], { type: type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function clearCanvas() {
+    canvas.innerHTML = "";
+    currentBlueprint = null;
+    variablesList.innerHTML = "<p style='color:#666;font-size:12px'>暂无变量</p>";
+    nodeCount.textContent = "0";
+    showMessage("画布已清空");
+}
+
+function showMessage(msg) { messageArea.textContent = msg; }
+
+function zoomCanvas(delta) {
+    zoom = Math.max(0.25, Math.min(3, zoom + delta));
+    canvas.style.transform = "translate(" + canvasOffset.x + "px," + canvasOffset.y + "px) scale(" + zoom + ")";
+    document.getElementById("zoom-level").textContent = Math.round(zoom * 100) + "%";
+}
+
+canvasContainer.addEventListener("wheel", e => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+    const rect = canvasContainer.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    const oldZoom = zoom;
+    zoom = Math.max(0.25, Math.min(3, zoom + delta));
+    
+    canvasOffset.x = mouseX - (mouseX - canvasOffset.x) * (zoom / oldZoom);
+    canvasOffset.y = mouseY - (mouseY - canvasOffset.y) * (zoom / oldZoom);
+    
+    canvas.style.transform = "translate(" + canvasOffset.x + "px," + canvasOffset.y + "px) scale(" + zoom + ")";
+    document.getElementById("zoom-level").textContent = Math.round(zoom * 100) + "%";
+}, { passive: false });
+
+canvasContainer.addEventListener("mousedown", e => {
+    if (e.target === canvasContainer || e.target === canvas) {
+        isDragging = true;
+        const rect = canvas.getBoundingClientRect();
+        dragOffset.x = e.clientX - rect.left - canvasOffset.x;
+        dragOffset.y = e.clientY - rect.top - canvasOffset.y;
+    }
+});
+
+document.addEventListener("mousemove", e => {
+    if (!isDragging) return;
+    const rect = canvasContainer.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    if (selectedNode && currentBlueprint) {
+        const node = currentBlueprint.nodes.find(n => n.id === selectedNode.id);
+        if (node) {
+            node.x = Math.max(0, (mouseX - canvasOffset.x - dragOffset.x) / zoom);
+            node.y = Math.max(0, (mouseY - canvasOffset.y - dragOffset.y) / zoom);
+            renderBlueprint(currentBlueprint);
+        }
+    } else {
+        canvasOffset.x = mouseX - dragOffset.x;
+        canvasOffset.y = mouseY - dragOffset.y;
+        canvas.style.transform = "translate(" + canvasOffset.x + "px," + canvasOffset.y + "px) scale(" + zoom + ")";
+    }
+});
+
+document.addEventListener("mouseup", () => { isDragging = false; selectedNode = null; });
+document.getElementById("zoom-in").addEventListener("click", () => zoomCanvas(0.1));
+document.getElementById("zoom-out").addEventListener("click", () => zoomCanvas(-0.1));
+generateBtn.addEventListener("click", generateBlueprint);
+document.getElementById("export-json").addEventListener("click", exportJSON);
+document.getElementById("export-markdown").addEventListener("click", exportMarkdown);
+document.getElementById("show-history").addEventListener("click", showHistory);
+document.getElementById("clear-canvas").addEventListener("click", clearCanvas);
+
+// 加载示例蓝图
+document.getElementById("load-example").addEventListener("click", function() {
+    const exampleBlueprint = {
+  "nodes": [
+    {"id": "event_begin", "type": "EventBeginPlay", "label": "Event BeginPlay", "x": 50, "y": 50, "color": "#1a1a2e", "inputs": [], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {}},
+    {"id": "set_wave", "type": "SetVariable", "label": "Set CurrentWave = 1", "x": 50, "y": 150, "color": "#16213e", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Value", "type": "Integer"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"VariableName": "CurrentWave", "Value": 1}},
+    {"id": "set_count", "type": "SetVariable", "label": "Set EnemyCount = 0", "x": 50, "y": 250, "color": "#16213e", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Value", "type": "Integer"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"VariableName": "EnemyCount", "Value": 0}},
+    {"id": "spawn_loop", "type": "Loop", "label": "Loop 3 Times", "x": 50, "y": 350, "color": "#0f3460", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Count", "type": "Integer"}], "outputs": [{"name": "Loop Body", "type": "Execution"}, {"name": "Completed", "type": "Execution"}], "properties": {"Count": 3}},
+    {"id": "delay_spawn", "type": "Delay", "label": "Delay 2 Seconds", "x": 50, "y": 480, "color": "#e94560", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Duration", "type": "Float"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"Duration": 2.0}},
+    {"id": "spawn_enemy", "type": "SpawnActor", "label": "Spawn Enemy Actor", "x": 50, "y": 580, "color": "#533483", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Class", "type": "ActorClass"}, {"name": "Location", "type": "Vector"}], "outputs": [{"name": "Return Value", "type": "Actor"}, {"name": "Then", "type": "Execution"}], "properties": {"Class": "BP_Enemy", "Location": "(0, 0, 100)"}},
+    {"id": "increment_count", "type": "SetVariable", "label": "EnemyCount++", "x": 50, "y": 680, "color": "#16213e", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Value", "type": "Integer"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"VariableName": "EnemyCount", "Operation": "Increment"}},
+    {"id": "play_wave_sound", "type": "PlaySound", "label": "Play Wave Complete Sound", "x": 300, "y": 350, "color": "#533483", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Sound", "type": "SoundAsset"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"Sound": "WaveCompleteSFX"}},
+    {"id": "delay_next_wave", "type": "Delay", "label": "Delay 3 Seconds", "x": 300, "y": 450, "color": "#e94560", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Duration", "type": "Float"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"Duration": 3.0}},
+    {"id": "check_victory", "type": "Branch", "label": "Wave >= 5?", "x": 300, "y": 550, "color": "#0f3460", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Condition", "type": "Boolean"}], "outputs": [{"name": "True", "type": "Execution"}, {"name": "False", "type": "Execution"}], "properties": {}},
+    {"id": "victory_message", "type": "PrintString", "label": "Victory! Wave 5 Complete", "x": 150, "y": 700, "color": "#533483", "inputs": [{"name": "In", "type": "Execution"}, {"name": "String", "type": "String"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"String": "Victory! All waves completed!"}},
+    {"id": "increment_wave", "type": "SetVariable", "label": "CurrentWave++", "x": 550, "y": 550, "color": "#16213e", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Value", "type": "Integer"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"VariableName": "CurrentWave", "Operation": "Increment"}},
+    {"id": "loop_back", "type": "Branch", "label": "EnemyCount < 3?", "x": 550, "y": 650, "color": "#0f3460", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Condition", "type": "Boolean"}], "outputs": [{"name": "True", "type": "Execution"}, {"name": "False", "type": "Execution"}], "properties": {}},
+    {"id": "return_loop", "type": "Delay", "label": "Small Delay", "x": 300, "y": 250, "color": "#e94560", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Duration", "type": "Float"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"Duration": 0.1}},
+    {"id": "check_game_over", "type": "Branch", "label": "Health <= 0?", "x": 550, "y": 50, "color": "#0f3460", "inputs": [{"name": "In", "type": "Execution"}, {"name": "Condition", "type": "Boolean"}], "outputs": [{"name": "True", "type": "Execution"}, {"name": "False", "type": "Execution"}], "properties": {}},
+    {"id": "game_over_message", "type": "PrintString", "label": "Game Over!", "x": 400, "y": 150, "color": "#533483", "inputs": [{"name": "In", "type": "Execution"}, {"name": "String", "type": "String"}], "outputs": [{"name": "Then", "type": "Execution"}], "properties": {"String": "Game Over - Health Depleted"}}
+  ],
+  "connections": [
+    {"fromNode": "event_begin", "fromPin": "Then", "toNode": "set_wave", "toPin": "In"},
+    {"fromNode": "set_wave", "fromPin": "Then", "toNode": "set_count", "toPin": "In"},
+    {"fromNode": "set_count", "fromPin": "Then", "toNode": "check_game_over", "toPin": "In"},
+    {"fromNode": "set_count", "fromPin": "Then", "toNode": "spawn_loop", "toPin": "In"},
+    {"fromNode": "spawn_loop", "fromPin": "Loop Body", "toNode": "delay_spawn", "toPin": "In"},
+    {"fromNode": "delay_spawn", "fromPin": "Then", "toNode": "spawn_enemy", "toPin": "In"},
+    {"fromNode": "spawn_enemy", "fromPin": "Then", "toNode": "increment_count", "toPin": "In"},
+    {"fromNode": "increment_count", "fromPin": "Then", "toNode": "loop_back", "toPin": "In"},
+    {"fromNode": "loop_back", "fromPin": "True", "toNode": "spawn_loop", "toPin": "In"},
+    {"fromNode": "loop_back", "fromPin": "False", "toNode": "play_wave_sound", "toPin": "In"},
+    {"fromNode": "spawn_loop", "fromPin": "Completed", "toNode": "play_wave_sound", "toPin": "In"},
+    {"fromNode": "play_wave_sound", "fromPin": "Then", "toNode": "delay_next_wave", "toPin": "In"},
+    {"fromNode": "delay_next_wave", "fromPin": "Then", "toNode": "check_victory", "toPin": "In"},
+    {"fromNode": "check_victory", "fromPin": "True", "toNode": "victory_message", "toPin": "In"},
+    {"fromNode": "check_victory", "fromPin": "False", "toNode": "increment_wave", "toPin": "In"},
+    {"fromNode": "increment_wave", "fromPin": "Then", "toNode": "return_loop", "toPin": "In"},
+    {"fromNode": "return_loop", "fromPin": "Then", "toNode": "set_count", "toPin": "In"},
+    {"fromNode": "check_game_over", "fromPin": "True", "toNode": "game_over_message", "toPin": "In"}
+  ],
+  "variables": [
+    {"name": "CurrentWave", "type": "Integer", "defaultValue": "1", "description": "当前波次，从1开始"},
+    {"name": "EnemyCount", "type": "Integer", "defaultValue": "0", "description": "当前波次已生成敌人数量"},
+    {"name": "Health", "type": "Integer", "defaultValue": "100", "description": "玩家生命值"}
+  ],
+  "description": "敌人生成波次系统：游戏开始初始化波次为1，每波生成3个敌人（每2秒一个），完成后播放音效，等待3秒进入下一波。波次>=5时胜利，Health<=0时游戏结束。"
+};
+    
+    currentBlueprint = exampleBlueprint;
+    renderBlueprint(exampleBlueprint);
+    updateVariablesPanel(exampleBlueprint.variables);
+    promptInput.value = "敌人生成波次系统：游戏开始初始化波次为1，每波生成3个敌人（每2秒一个），完成后播放音效，等待3秒进入下一波。波次>=5时胜利，Health<=0时游戏结束。";
+    showMessage("已加载示例 - " + exampleBlueprint.nodes.length + " 个节点");
+});
+
+promptInput.addEventListener("keydown", e => { if (e.key === "Enter" && e.ctrlKey) generateBlueprint(); });
+showMessage("就绪 - 输入需求并点击生成蓝图");</script></body></html>

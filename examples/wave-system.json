@@ -1,0 +1,213 @@
+{
+  "nodes": [
+    {
+      "id": "event_begin",
+      "type": "EventBeginPlay",
+      "label": "Event BeginPlay",
+      "x": 50,
+      "y": 50,
+      "color": "#1a1a2e",
+      "inputs": [],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {}
+    },
+    {
+      "id": "set_wave",
+      "type": "SetVariable",
+      "label": "Set CurrentWave = 1",
+      "x": 50,
+      "y": 150,
+      "color": "#16213e",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Value", "type": "Integer"}],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"VariableName": "CurrentWave", "Value": 1}
+    },
+    {
+      "id": "set_count",
+      "type": "SetVariable",
+      "label": "Set EnemyCount = 0",
+      "x": 50,
+      "y": 250,
+      "color": "#16213e",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Value", "type": "Integer"}],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"VariableName": "EnemyCount", "Value": 0}
+    },
+    {
+      "id": "spawn_loop",
+      "type": "Loop",
+      "label": "Loop 3 Times",
+      "x": 50,
+      "y": 350,
+      "color": "#0f3460",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Count", "type": "Integer"}],
+      "outputs": [{"name": "Loop Body", "type": "Execution"}, {"name": "Completed", "type": "Execution"}],
+      "properties": {"Count": 3}
+    },
+    {
+      "id": "delay_spawn",
+      "type": "Delay",
+      "label": "Delay 2 Seconds",
+      "x": 50,
+      "y": 480,
+      "color": "#e94560",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Duration", "type": "Float"}],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"Duration": 2.0}
+    },
+    {
+      "id": "spawn_enemy",
+      "type": "SpawnActor",
+      "label": "Spawn Enemy Actor",
+      "x": 50,
+      "y": 580,
+      "color": "#533483",
+      "inputs": [
+        {"name": "In", "type": "Execution"},
+        {"name": "Class", "type": "ActorClass"},
+        {"name": "Location", "type": "Vector"}
+      ],
+      "outputs": [{"name": "Return Value", "type": "Actor"}, {"name": "Then", "type": "Execution"}],
+      "properties": {"Class": "BP_Enemy", "Location": "(0, 0, 100)"}
+    },
+    {
+      "id": "increment_count",
+      "type": "SetVariable",
+      "label": "EnemyCount++",
+      "x": 50,
+      "y": 680,
+      "color": "#16213e",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Value", "type": "Integer"}],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"VariableName": "EnemyCount", "Operation": "Increment"}
+    },
+    {
+      "id": "play_wave_sound",
+      "type": "PlaySound",
+      "label": "Play Wave Complete Sound",
+      "x": 300,
+      "y": 350,
+      "color": "#533483",
+      "inputs": [
+        {"name": "In", "type": "Execution"},
+        {"name": "Sound", "type": "SoundAsset"}
+      ],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"Sound": "WaveCompleteSFX"}
+    },
+    {
+      "id": "delay_next_wave",
+      "type": "Delay",
+      "label": "Delay 3 Seconds",
+      "x": 300,
+      "y": 450,
+      "color": "#e94560",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Duration", "type": "Float"}],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"Duration": 3.0}
+    },
+    {
+      "id": "check_victory",
+      "type": "Branch",
+      "label": "Wave >= 5?",
+      "x": 300,
+      "y": 550,
+      "color": "#0f3460",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Condition", "type": "Boolean"}],
+      "outputs": [{"name": "True", "type": "Execution"}, {"name": "False", "type": "Execution"}],
+      "properties": {}
+    },
+    {
+      "id": "victory_message",
+      "type": "PrintString",
+      "label": "Victory! Wave 5 Complete",
+      "x": 150,
+      "y": 700,
+      "color": "#533483",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "String", "type": "String"}],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"String": "Victory! All waves completed!"}
+    },
+    {
+      "id": "increment_wave",
+      "type": "SetVariable",
+      "label": "CurrentWave++",
+      "x": 550,
+      "y": 550,
+      "color": "#16213e",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Value", "type": "Integer"}],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"VariableName": "CurrentWave", "Operation": "Increment"}
+    },
+    {
+      "id": "loop_back",
+      "type": "Branch",
+      "label": "EnemyCount < 3?",
+      "x": 550,
+      "y": 650,
+      "color": "#0f3460",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Condition", "type": "Boolean"}],
+      "outputs": [{"name": "True", "type": "Execution"}, {"name": "False", "type": "Execution"}],
+      "properties": {}
+    },
+    {
+      "id": "return_loop",
+      "type": "Delay",
+      "label": "Small Delay",
+      "x": 300,
+      "y": 250,
+      "color": "#e94560",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Duration", "type": "Float"}],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"Duration": 0.1}
+    },
+    {
+      "id": "check_game_over",
+      "type": "Branch",
+      "label": "Health <= 0?",
+      "x": 550,
+      "y": 50,
+      "color": "#0f3460",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "Condition", "type": "Boolean"}],
+      "outputs": [{"name": "True", "type": "Execution"}, {"name": "False", "type": "Execution"}],
+      "properties": {}
+    },
+    {
+      "id": "game_over_message",
+      "type": "PrintString",
+      "label": "Game Over!",
+      "x": 400,
+      "y": 150,
+      "color": "#533483",
+      "inputs": [{"name": "In", "type": "Execution"}, {"name": "String", "type": "String"}],
+      "outputs": [{"name": "Then", "type": "Execution"}],
+      "properties": {"String": "Game Over - Health Depleted"}
+    }
+  ],
+  "connections": [
+    {"fromNode": "event_begin", "fromPin": "Then", "toNode": "set_wave", "toPin": "In"},
+    {"fromNode": "set_wave", "fromPin": "Then", "toNode": "set_count", "toPin": "In"},
+    {"fromNode": "set_count", "fromPin": "Then", "toNode": "check_game_over", "toPin": "In"},
+    {"fromNode": "set_count", "fromPin": "Then", "toNode": "spawn_loop", "toPin": "In"},
+    {"fromNode": "spawn_loop", "fromPin": "Loop Body", "toNode": "delay_spawn", "toPin": "In"},
+    {"fromNode": "delay_spawn", "fromPin": "Then", "toNode": "spawn_enemy", "toPin": "In"},
+    {"fromNode": "spawn_enemy", "fromPin": "Then", "toNode": "increment_count", "toPin": "In"},
+    {"fromNode": "increment_count", "fromPin": "Then", "toNode": "loop_back", "toPin": "In"},
+    {"fromNode": "loop_back", "fromPin": "True", "toNode": "spawn_loop", "toPin": "In"},
+    {"fromNode": "loop_back", "fromPin": "False", "toNode": "play_wave_sound", "toPin": "In"},
+    {"fromNode": "spawn_loop", "fromPin": "Completed", "toNode": "play_wave_sound", "toPin": "In"},
+    {"fromNode": "play_wave_sound", "fromPin": "Then", "toNode": "delay_next_wave", "toPin": "In"},
+    {"fromNode": "delay_next_wave", "fromPin": "Then", "toNode": "check_victory", "toPin": "In"},
+    {"fromNode": "check_victory", "fromPin": "True", "toNode": "victory_message", "toPin": "In"},
+    {"fromNode": "check_victory", "fromPin": "False", "toNode": "increment_wave", "toPin": "In"},
+    {"fromNode": "increment_wave", "fromPin": "Then", "toNode": "return_loop", "toPin": "In"},
+    {"fromNode": "return_loop", "fromPin": "Then", "toNode": "set_count", "toPin": "In"},
+    {"fromNode": "check_game_over", "fromPin": "True", "toNode": "game_over_message", "toPin": "In"}
+  ],
+  "variables": [
+    {"name": "CurrentWave", "type": "Integer", "defaultValue": "1", "description": "当前波次，从1开始"},
+    {"name": "EnemyCount", "type": "Integer", "defaultValue": "0", "description": "当前波次已生成敌人数量"},
+    {"name": "Health", "type": "Integer", "defaultValue": "100", "description": "玩家生命值"}
+  ],
+  "description": "敌人生成波次系统：游戏开始初始化波次为1，每波生成3个敌人（每2秒一个），完成后播放音效，等待3秒进入下一波。波次>=5时胜利，Health<=0时游戏结束。"
+}
